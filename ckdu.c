@@ -200,13 +200,14 @@ void present_tree(ckdu_tree_entry const *virtual_root) {
 	present_tree_indent(virtual_root, "");
 }
 
-int main() {
+int main(int argc, char **argv) {
 	ckdu_tree_entry pwd_entry;
 	inode_pool_class inode_pool;
+	const char * const path = (argc > 1) ? argv[1] : ".";
 
-	initialize_tree_entry(&pwd_entry, ".", ".");
+	initialize_tree_entry(&pwd_entry, path, ".");
 	initialize_inode_pool(&inode_pool);
-	crawl_tree(&pwd_entry, &inode_pool, ".");
+	crawl_tree(&pwd_entry, &inode_pool, path);
 	present_tree(&pwd_entry);
 
 	return 0;
