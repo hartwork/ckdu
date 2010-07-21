@@ -11,10 +11,10 @@
 #include <dirent.h>  /* for opendir, readdir */
 #include <errno.h> /* for errno */
 
-#include <string.h> /* for strlen */
-#include <stdlib.h> /* for malloc, NULL */
+#include <string.h> /* for strlen, strcmp, memcpy */
+#include <stdlib.h> /* for malloc, NULL, qsort */
 #include <assert.h> /* for assert */
-#include <stdio.h> /* for memcpy, strlen, printf, fprintf */
+#include <stdio.h> /* for printf, fprintf */
 
 typedef int bool;
 const bool true = 1;
