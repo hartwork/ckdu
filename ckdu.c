@@ -34,10 +34,11 @@ typedef struct _ckdu_tree_entry {
 	/* Output of stat/fstat/lstat */
 	struct stat props;
 
+	struct _ckdu_tree_entry *sibling;
+
 	union {
 		struct {
 			struct _ckdu_tree_entry *child;
-			struct _ckdu_tree_entry *sibling;
 			off_t add_st_size;
 		} dir;
 /*
@@ -83,7 +84,7 @@ int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const cha
 	assert(entry->name);
 
 	entry->extra.dir.child = NULL;
-	entry->extra.dir.sibling = NULL;
+	entry->sibling = NULL;
 	entry->extra.dir.add_st_size = 0;
 	return res;
 }
@@ -141,7 +142,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, inode_pool_class *inode_pool, con
 					handle_stat_error(errno);
 				} else {
 					if (prev) {
-						prev->extra.dir.sibling = node;
+						prev->sibling = node;
 					} else {
 						virtual_root->extra.dir.child = node;
 					}
@@ -167,7 +168,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, inode_pool_class *inode_pool, con
 
 void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent) {
 	long const bytes_content = virtual_root->props.st_size + (is_dir(virtual_root) ? virtual_root->extra.dir.add_st_size : 0);
-	ckdu_tree_entry const * const sibling = virtual_root->extra.dir.sibling;
+	ckdu_tree_entry const * const sibling = virtual_root->sibling;
 	ckdu_tree_entry const * const child = virtual_root->extra.dir.child;
 
 	char * const final_name = is_dir(virtual_root) ? malloc_path_join(virtual_root->name, "") : strdup(virtual_root->name);
