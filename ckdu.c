@@ -114,10 +114,67 @@ void initialize_inode_pool(inode_pool_class *inode_pool) {
 	inode_pool = inode_pool; /* TODO */
 }
 
+int compare_siblings(const void *void_a, const void *void_b) {
+	ckdu_tree_entry const * const a = *(ckdu_tree_entry const * const *)void_a;
+	ckdu_tree_entry const * const b = *(ckdu_tree_entry const * const *)void_b;
+
+	/* Meant to compare entries as following:
+	 * 1. Dirs before files
+	 * 2. Big things before small things, content-wise
+	 * 3. After that sort alphabetically
+	 */
+	int const diff_dir = is_dir(b) - is_dir(a);
+	if (diff_dir) {
+		return diff_dir;
+	} else {
+		int const diff_size = (b->props.st_size + b->extra.dir.add_st_size)
+				- (a->props.st_size + a->extra.dir.add_st_size);
+		if (diff_size) {
+			return diff_size;
+		} else {
+			return strcmp(a->name, b->name);
+		}
+	}
+}
+
+void sort_siblings(ckdu_tree_entry *parent, int child_count) {
+	ckdu_tree_entry ** const array = malloc(child_count * sizeof(ckdu_tree_entry *));
+	ckdu_tree_entry *read = parent->extra.dir.child;
+	ckdu_tree_entry *prev;
+	int i = 0;
+
+	if (!child_count) {
+		/* Empty list is always sorted */
+		return;
+	}
+
+	/* Fill array from linked list */
+	for (; i < child_count; i++) {
+		assert(read);
+		array[i] = read;
+		read = read->sibling;
+	}
+
+	/* Sort array */
+	qsort(array, child_count, sizeof(ckdu_tree_entry *), compare_siblings);
+
+	/* Re-create list from array */
+	parent->extra.dir.child = array[0];
+	prev = array[0];
+	for (i = 1; i < child_count; i++) {
+		prev->sibling = array[i];
+		prev = array[i];
+	}
+	prev->sibling = NULL;
+
+	free(array);
+}
+
 void crawl_tree(ckdu_tree_entry *virtual_root, inode_pool_class *inode_pool, const char *dirname) {
 	DIR * dir;
 	struct dirent *entry;
 	ckdu_tree_entry *prev = NULL;
+	int child_count = 0;
 
 	errno = 0;
 	dir = opendir(dirname);
@@ -147,6 +204,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, inode_pool_class *inode_pool, con
 						virtual_root->extra.dir.child = node;
 					}
 					prev = node;
+					child_count++;
 
 					if (is_dir(node)) {
 						char * const child_dirname = malloc_path_join(dirname, entry->d_name);
@@ -162,6 +220,8 @@ void crawl_tree(ckdu_tree_entry *virtual_root, inode_pool_class *inode_pool, con
 			}
 		}
 	} while (entry);
+
+	sort_siblings(virtual_root, child_count);
 
 	closedir(dir);
 }
