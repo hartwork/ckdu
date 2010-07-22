@@ -265,6 +265,17 @@ void crawl_tree(ckdu_tree_entry *virtual_root, void **inode_pool, const char *di
 	closedir(dir);
 }
 
+bool is_boring_folder(const char *basename) {
+	char const *blacklist[] = {"autom4te.cache", ".git", ".svn", "CVS"};
+	size_t i = 0;
+	for (; i < sizeof(blacklist) / sizeof(char *); i++) {
+		if (!strcmp(basename, blacklist[i])) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent) {
 	long const bytes_content = virtual_root->content_size + (is_dir(virtual_root) ? virtual_root->extra.dir.add_content_size : 0);
 	ckdu_tree_entry const * const sibling = virtual_root->sibling;
@@ -284,7 +295,11 @@ void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent
 		child_indent[child_indent_len] = '\0';
 
 		if (child != NULL) {
-			present_tree_indent(child, child_indent);
+			if (is_boring_folder(virtual_root->name)) {
+				printf("%9s%s %s\n", "...", child_indent, "...");
+			} else {
+				present_tree_indent(child, child_indent);
+			}
 		}
 
 		free(child_indent);
