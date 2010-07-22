@@ -27,12 +27,20 @@ typedef enum _ckdu_file_type {
 	CKDU_FILE_TYPE_OTHER
 } ckdu_file_type;
 
+typedef struct _ckdu_tree_key {
+	/* Subset of struct stat filled by stat() */
+	dev_t st_dev;
+	ino_t st_ino;
+} ckdu_tree_key;
+
 typedef struct _ckdu_tree_entry {
 	/* File/dir/link name (without path!), no more than MAX_NAME+1 bytes in size */
 	char *name;
 
-	/* Output of stat/fstat/lstat */
-	struct stat props;
+	/* Subset of struct stat filled by stat() */
+	ckdu_tree_key key;
+	off_t st_size;
+	mode_t st_mode;
 
 	struct _ckdu_tree_entry *sibling;
 
@@ -73,13 +81,21 @@ char * malloc_path_join(const char *dirname, const char *basename) {
 
 bool is_dir(ckdu_tree_entry const *entry) {
 	assert(entry);
-	return S_ISDIR(entry->props.st_mode);
+	return S_ISDIR(entry->st_mode);
 }
 
 int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const char *basename) {
 	char * const path = malloc_path_join(dirname, basename);
-	int const res = stat(path, &(entry->props));
+	struct stat props;
+	int const res = stat(path, &props);
+
 	free(path);
+
+	entry->key.st_dev = props.st_dev;
+	entry->key.st_ino = props.st_ino;
+	entry->st_size = props.st_size;
+	entry->st_mode = props.st_mode;
+
 	entry->name = strdup(basename);
 	assert(entry->name);
 
@@ -127,8 +143,8 @@ int compare_siblings(const void *void_a, const void *void_b) {
 	if (diff_dir) {
 		return diff_dir;
 	} else {
-		int const diff_size = (b->props.st_size + b->extra.dir.add_st_size)
-				- (a->props.st_size + a->extra.dir.add_st_size);
+		int const diff_size = (b->st_size + b->extra.dir.add_st_size)
+				- (a->st_size + a->extra.dir.add_st_size);
 		if (diff_size) {
 			return diff_size;
 		} else {
@@ -212,7 +228,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, inode_pool_class *inode_pool, con
 						free(child_dirname);
 					}
 
-					virtual_root->extra.dir.add_st_size += node->props.st_size;
+					virtual_root->extra.dir.add_st_size += node->st_size;
 					if (is_dir(node)) {
 						virtual_root->extra.dir.add_st_size += node->extra.dir.add_st_size;
 					}
@@ -227,7 +243,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, inode_pool_class *inode_pool, con
 }
 
 void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent) {
-	long const bytes_content = virtual_root->props.st_size + (is_dir(virtual_root) ? virtual_root->extra.dir.add_st_size : 0);
+	long const bytes_content = virtual_root->st_size + (is_dir(virtual_root) ? virtual_root->extra.dir.add_st_size : 0);
 	ckdu_tree_entry const * const sibling = virtual_root->sibling;
 	ckdu_tree_entry const * const child = virtual_root->extra.dir.child;
 
