@@ -6,6 +6,11 @@
  * Licensed under GPL v3 or later
  */
 
+/* GLIBC begin */
+#define _GNU_SOURCE  /* for tdestroy */
+#include <search.h> /* tfind, tsearch */
+/* GLIBC end */
+
 #include <sys/types.h>  /* for opendir, readdir, stat */
 #include <sys/stat.h> /* for stat */
 #include <dirent.h>  /* for opendir, readdir */
@@ -121,15 +126,6 @@ void handle_opendir_error(int code) {
 	fallback_handler("opendir", code);
 }
 
-typedef struct _inode_pool_class {
-	int dummy;
-	/* TODO */
-} inode_pool_class;
-
-void initialize_inode_pool(inode_pool_class *inode_pool) {
-	inode_pool = inode_pool; /* TODO */
-}
-
 int compare_siblings(const void *void_a, const void *void_b) {
 	ckdu_tree_entry const * const a = *(ckdu_tree_entry const * const *)void_a;
 	ckdu_tree_entry const * const b = *(ckdu_tree_entry const * const *)void_b;
@@ -186,7 +182,36 @@ void sort_siblings(ckdu_tree_entry *parent, int child_count) {
 	free(array);
 }
 
-void crawl_tree(ckdu_tree_entry *virtual_root, inode_pool_class *inode_pool, const char *dirname) {
+int compare_trees_id_wise(const void *void_a, const void *void_b) {
+	ckdu_tree_entry const * const a = (ckdu_tree_entry const *)void_a;
+	ckdu_tree_entry const * const b = (ckdu_tree_entry const *)void_b;
+
+	const int dev_diff = a->key.st_dev - b->key.st_dev;
+	if (dev_diff) {
+		return dev_diff;
+	} else {
+		return a->key.st_ino - b->key.st_ino;
+	}
+}
+
+bool add_to_pool(void **inode_pool, ckdu_tree_entry const *entry) {
+	ckdu_tree_entry const * const key = entry;
+	ckdu_tree_entry **value;
+
+	value = tfind(key, inode_pool, compare_trees_id_wise);
+	if (value) {
+		return false;
+	}
+
+	value = tsearch(key, inode_pool, compare_trees_id_wise);
+	if (!value) {
+		/* Ran out of space, TODO */
+		assert(false);
+	}
+	return true;
+}
+
+void crawl_tree(ckdu_tree_entry *virtual_root, void **inode_pool, const char *dirname) {
 	DIR * dir;
 	struct dirent *entry;
 	ckdu_tree_entry *prev = NULL;
@@ -228,9 +253,12 @@ void crawl_tree(ckdu_tree_entry *virtual_root, inode_pool_class *inode_pool, con
 						free(child_dirname);
 					}
 
-					virtual_root->extra.dir.add_st_size += node->st_size;
-					if (is_dir(node)) {
-						virtual_root->extra.dir.add_st_size += node->extra.dir.add_st_size;
+					if (add_to_pool(inode_pool, node)) {
+						/* Inode not seen in sister trees before */
+						virtual_root->extra.dir.add_st_size += node->st_size;
+						if (is_dir(node)) {
+							virtual_root->extra.dir.add_st_size += node->extra.dir.add_st_size;
+						}
 					}
 				}
 			}
@@ -277,15 +305,19 @@ void present_tree(ckdu_tree_entry const *virtual_root) {
 	present_tree_indent(virtual_root, "");
 }
 
+void noop_free(void *key) {
+	key = key;
+}
+
 int main(int argc, char **argv) {
 	ckdu_tree_entry pwd_entry;
-	inode_pool_class inode_pool;
+	void *inode_pool = NULL;
 	const char * const path = (argc > 1) ? argv[1] : ".";
 
 	initialize_tree_entry(&pwd_entry, path, ".");
-	initialize_inode_pool(&inode_pool);
 	crawl_tree(&pwd_entry, &inode_pool, path);
 	present_tree(&pwd_entry);
 
+	tdestroy(inode_pool, noop_free);
 	return 0;
 }
