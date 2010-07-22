@@ -32,18 +32,13 @@ typedef enum _ckdu_file_type {
 	CKDU_FILE_TYPE_OTHER
 } ckdu_file_type;
 
-typedef struct _ckdu_tree_key {
-	/* Subset of struct stat filled by stat() */
-	dev_t st_dev;
-	ino_t st_ino;
-} ckdu_tree_key;
-
 typedef struct _ckdu_tree_entry {
 	/* File/dir/link name (without path!), no more than MAX_NAME+1 bytes in size */
 	char *name;
 
 	/* Subset of struct stat filled by stat() */
-	ckdu_tree_key key;
+	dev_t st_dev;
+	ino_t st_ino;
 	off_t st_size;
 	mode_t st_mode;
 
@@ -96,8 +91,8 @@ int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const cha
 
 	free(path);
 
-	entry->key.st_dev = props.st_dev;
-	entry->key.st_ino = props.st_ino;
+	entry->st_dev = props.st_dev;
+	entry->st_ino = props.st_ino;
 	entry->st_size = props.st_size;
 	entry->st_mode = props.st_mode;
 
@@ -186,11 +181,11 @@ int compare_trees_id_wise(const void *void_a, const void *void_b) {
 	ckdu_tree_entry const * const a = (ckdu_tree_entry const *)void_a;
 	ckdu_tree_entry const * const b = (ckdu_tree_entry const *)void_b;
 
-	const int dev_diff = a->key.st_dev - b->key.st_dev;
+	const int dev_diff = a->st_dev - b->st_dev;
 	if (dev_diff) {
 		return dev_diff;
 	} else {
-		return a->key.st_ino - b->key.st_ino;
+		return a->st_ino - b->st_ino;
 	}
 }
 
