@@ -37,17 +37,17 @@ typedef struct _ckdu_tree_entry {
 	char *name;
 
 	/* Subset of struct stat filled by stat() */
-	dev_t st_dev;
-	ino_t st_ino;
-	off_t st_size;
-	mode_t st_mode;
+	dev_t device;
+	ino_t inode;
+	off_t content_size;
+	mode_t mode;
 
 	struct _ckdu_tree_entry *sibling;
 
 	union {
 		struct {
 			struct _ckdu_tree_entry *child;
-			off_t add_st_size;
+			off_t add_content_size;
 		} dir;
 /*
 		struct {
@@ -81,7 +81,7 @@ char * malloc_path_join(const char *dirname, const char *basename) {
 
 bool is_dir(ckdu_tree_entry const *entry) {
 	assert(entry);
-	return S_ISDIR(entry->st_mode);
+	return S_ISDIR(entry->mode);
 }
 
 int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const char *basename) {
@@ -91,17 +91,17 @@ int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const cha
 
 	free(path);
 
-	entry->st_dev = props.st_dev;
-	entry->st_ino = props.st_ino;
-	entry->st_size = props.st_size;
-	entry->st_mode = props.st_mode;
+	entry->device = props.st_dev;
+	entry->inode = props.st_ino;
+	entry->content_size = props.st_size;
+	entry->mode = props.st_mode;
 
 	entry->name = strdup(basename);
 	assert(entry->name);
 
 	entry->extra.dir.child = NULL;
 	entry->sibling = NULL;
-	entry->extra.dir.add_st_size = 0;
+	entry->extra.dir.add_content_size = 0;
 	return res;
 }
 
@@ -134,8 +134,8 @@ int compare_siblings(const void *void_a, const void *void_b) {
 	if (diff_dir) {
 		return diff_dir;
 	} else {
-		int const diff_size = (b->st_size + b->extra.dir.add_st_size)
-				- (a->st_size + a->extra.dir.add_st_size);
+		int const diff_size = (b->content_size + b->extra.dir.add_content_size)
+				- (a->content_size + a->extra.dir.add_content_size);
 		if (diff_size) {
 			return diff_size;
 		} else {
@@ -181,11 +181,11 @@ int compare_trees_id_wise(const void *void_a, const void *void_b) {
 	ckdu_tree_entry const * const a = (ckdu_tree_entry const *)void_a;
 	ckdu_tree_entry const * const b = (ckdu_tree_entry const *)void_b;
 
-	const int dev_diff = a->st_dev - b->st_dev;
+	const int dev_diff = a->device - b->device;
 	if (dev_diff) {
 		return dev_diff;
 	} else {
-		return a->st_ino - b->st_ino;
+		return a->inode - b->inode;
 	}
 }
 
@@ -250,9 +250,9 @@ void crawl_tree(ckdu_tree_entry *virtual_root, void **inode_pool, const char *di
 
 					if (add_to_pool(inode_pool, node)) {
 						/* Inode not seen in sister trees before */
-						virtual_root->extra.dir.add_st_size += node->st_size;
+						virtual_root->extra.dir.add_content_size += node->content_size;
 						if (is_dir(node)) {
-							virtual_root->extra.dir.add_st_size += node->extra.dir.add_st_size;
+							virtual_root->extra.dir.add_content_size += node->extra.dir.add_content_size;
 						}
 					}
 				}
@@ -266,7 +266,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, void **inode_pool, const char *di
 }
 
 void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent) {
-	long const bytes_content = virtual_root->st_size + (is_dir(virtual_root) ? virtual_root->extra.dir.add_st_size : 0);
+	long const bytes_content = virtual_root->content_size + (is_dir(virtual_root) ? virtual_root->extra.dir.add_content_size : 0);
 	ckdu_tree_entry const * const sibling = virtual_root->sibling;
 	ckdu_tree_entry const * const child = virtual_root->extra.dir.child;
 
