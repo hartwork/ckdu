@@ -270,9 +270,8 @@ void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent
 	ckdu_tree_entry const * const sibling = virtual_root->sibling;
 	ckdu_tree_entry const * const child = virtual_root->extra.dir.child;
 
-	char * const final_name = is_dir(virtual_root) ? malloc_path_join(virtual_root->name, "") : strdup(virtual_root->name);
-	printf("%s%-20s    %6li Bytes\n", indent, final_name, bytes_content);
-	free(final_name);
+	char const * const slash_or_not = is_dir(virtual_root) ? "/" : "";
+	printf("%9li%s %s%s\n", bytes_content, indent, virtual_root->name, slash_or_not);
 
 	if (is_dir(virtual_root)) {
 		size_t const child_indent_len = strlen(indent) + 2;
