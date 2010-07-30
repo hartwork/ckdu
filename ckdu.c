@@ -271,35 +271,33 @@ bool is_boring_folder(const char *basename) {
 
 void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent) {
 	long const bytes_content = virtual_root->content_size + (is_dir(virtual_root) ? virtual_root->extra.dir.add_content_size : 0);
-	ckdu_tree_entry const * const sibling = virtual_root->sibling;
-	ckdu_tree_entry const * const child = virtual_root->extra.dir.child;
+	ckdu_tree_entry const * child = virtual_root->extra.dir.child;
 
 	char const * const slash_or_not = is_dir(virtual_root) ? "/" : "";
 	printf("%9li%s %s%s\n", bytes_content, indent, virtual_root->name, slash_or_not);
 
-	if (is_dir(virtual_root)) {
+	if (is_dir(virtual_root) && child) {
 		size_t const child_indent_len = strlen(indent) + 2;
 		size_t i = 0;
 		char * const child_indent = malloc(child_indent_len + 1);
 
+		/* Make indendation */
 		for (; i < child_indent_len; i++) {
 			child_indent[i] = ' ';
 		}
 		child_indent[child_indent_len] = '\0';
 
-		if (child != NULL) {
-			if (is_boring_folder(virtual_root->name)) {
-				printf("%9s%s %s\n", "...", child_indent, "...");
-			} else {
+		/* List children */
+		if (is_boring_folder(virtual_root->name)) {
+			printf("%9s%s %s\n", "...", child_indent, "...");
+		} else {
+			do {
 				present_tree_indent(child, child_indent);
-			}
+				child = child->sibling;
+			} while (child);
 		}
 
 		free(child_indent);
-	}
-
-	if (sibling != NULL) {
-		present_tree_indent(sibling, indent);
 	}
 }
 
