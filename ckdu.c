@@ -126,21 +126,78 @@ int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const cha
 	return res;
 }
 
-void fallback_handler(const char *function_name, int code) {
-	fprintf(stderr, "A call to %s() produced error code %i.\n", function_name, code);
+void default_error(const char ** constant, const char ** description) {
+	*constant = "E???";
+	*description = "Unknown error";
 }
 
-void handle_stat_error(int code) {
-	fallback_handler("stat", code);
+void describe_opendir_error(int code, const char ** constant, const char ** description) {
+	/* http://opengroup.org/onlinepubs/007908799/xsh/opendir.html */
+	switch (code) {
+	case EACCES: *constant = "EACCES"; *description = "Search permission is denied for the component of the path prefix of dirname or read permission is denied for dirname."; return;
+	case ELOOP: *constant = "ELOOP"; *description = "Too many symbolic links were encountered in resolving path."; return;
+	case ENOENT: *constant = "ENOENT"; *description = "A component of dirname does not name an existing directory or dirname is an empty string."; return;
+	case ENOTDIR: *constant = "ENOTDIR"; *description = "A component of dirname is not a directory."; return;
+	case EMFILE: *constant = "EMFILE"; *description = "{OPEN_MAX} file descriptors are currently open in the calling process. "; return;
+	case ENAMETOOLONG: *constant = "ENAMETOOLONG"; *description = "Pathname resolution of a symbolic link produced an intermediate result whose length exceeds {PATH_MAX}."; return;
+	case ENFILE: *constant = "ENFILE"; *description = "Too many files are currently open in the system."; return;
+	default: default_error(constant, description); return;
+	}
+	assert(false);
 }
 
-void handle_readdir_error(int code) {
-	fallback_handler("readdir", code);
+void describe_readdir_error(int code, const char ** constant, const char ** description) {
+	/* http://www.opengroup.org/onlinepubs/009695399/functions/readdir.html */
+	switch (code) {
+	case EOVERFLOW: *constant = "EOVERFLOW"; *description = "One of the values in the structure to be returned cannot be represented correctly."; return;
+	case EBADF: *constant = "EBADF"; *description = "The dirp argument does not refer to an open directory stream."; return;
+	case ENOENT: *constant = "ENOENT"; *description = "The current position of the directory stream is invalid."; return;
+	default: default_error(constant, description); return;
+	}
+	assert(false);
 }
 
-void handle_opendir_error(int code) {
-	fallback_handler("opendir", code);
+void describe_stat_error(int code, const char ** constant, const char ** description) {
+	/* http://www.opengroup.org/onlinepubs/000095399/functions/stat.html */
+	switch (code) {
+	case EACCES: *constant = "EACCES"; *description = "Search permission is denied for a component of the path prefix."; return;
+	case EIO: *constant = "EIO"; *description = "An error occurred while reading from the file system."; return;
+	case ENOENT: *constant = "ENOENT"; *description = "A component of path does not name an existing file or path is an empty string."; return;
+	case ENOTDIR: *constant = "ENOTDIR"; *description = "A component of the path prefix is not a directory."; return;
+	case ELOOP: *constant = "ELOOP"; *description = "More than {SYMLOOP_MAX} symbolic links were encountered during resolution of the path argument."; return;
+	case ENAMETOOLONG: *constant = "ENAMETOOLONG"; *description = "As a result of encountering a symbolic link in resolution of the path argument, the length of the substituted pathname string exceeded {PATH_MAX}."; return;
+	case EOVERFLOW: *constant = "EOVERFLOW"; *description = "A value to be stored would overflow one of the members of the stat structure. "; return;
+	default: default_error(constant, description); return;
+	}
+	assert(false);
 }
+
+void print_error(int code, const char * action, const char *dirname, const char *basename, const char * constant, const char * description) {
+	fprintf(stderr, "Error %s(%i) occured when %s %s/%s: %s\n", constant, code, action, dirname, basename ? basename : "", description);
+}
+
+void handle_stat_error(int code, const char *dirname, const char *basename) {
+	const char * constant = NULL;
+	const char * description = NULL;
+	describe_stat_error(code, &constant, &description);
+	print_error(code, "statting", dirname, basename, constant, description);
+}
+
+void handle_readdir_error(int code, const char *dirname) {
+	const char * constant = NULL;
+	const char * description = NULL;
+	describe_readdir_error(code, &constant, &description);
+	print_error(code, "reading", dirname, NULL, constant, description);
+}
+
+void handle_opendir_error(int code, const char *dirname) {
+	const char * constant = NULL;
+	const char * description = NULL;
+	describe_opendir_error(code, &constant, &description);
+	print_error(code, "opening", dirname, NULL, constant, description);
+}
+
+
 
 int compare_siblings(const void *void_a, const void *void_b) {
 	ckdu_tree_entry const * const a = *(ckdu_tree_entry const * const *)void_a;
@@ -236,7 +293,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, void **inode_pool, const char *di
 	errno = 0;
 	dir = opendir(dirname);
 	if (!dir) {
-		handle_opendir_error(errno);
+		handle_opendir_error(errno, dirname);
 		return;
 	}
 
@@ -245,7 +302,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, void **inode_pool, const char *di
 		entry = readdir(dir);
 		if (!entry) {
 			if (errno) {
-				handle_opendir_error(errno);
+				handle_opendir_error(errno, dirname);
 			}
 		} else {
 			if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
@@ -253,7 +310,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, void **inode_pool, const char *di
 
 				errno = 0;
 				if (initialize_tree_entry(node, dirname, entry->d_name)) {
-					handle_stat_error(errno);
+					handle_stat_error(errno, dirname, entry->d_name);
 				} else {
 					if (prev) {
 						prev->sibling = node;
