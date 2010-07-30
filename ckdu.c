@@ -25,13 +25,6 @@ typedef int bool;
 const bool true = 1;
 const bool false = 0;
 
-typedef enum _ckdu_file_type {
-	CKDU_FILE_TYPE_FILE,
-	CKDU_FILE_TYPE_DIR,
-	CKDU_FILE_TYPE_LINK,
-	CKDU_FILE_TYPE_OTHER
-} ckdu_file_type;
-
 typedef struct _ckdu_tree_entry {
 	/* File/dir/link name (without path!), no more than MAX_NAME+1 bytes in size */
 	char *name;
