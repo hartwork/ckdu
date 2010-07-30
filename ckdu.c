@@ -108,8 +108,10 @@ bool is_dir(ckdu_tree_entry const *entry) {
 int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const char *basename) {
 	char * const path = malloc_path_join(dirname, basename);
 	struct stat props;
-	int const res = stat(path, &props);
-
+	int res;
+	errno = 0;
+	
+	res = stat(path, &props);
 	free(path);
 
 	entry->device = props.st_dev;
@@ -173,7 +175,7 @@ void describe_stat_error(int code, const char ** constant, const char ** descrip
 }
 
 void print_error(int code, const char * action, const char *dirname, const char *basename, const char * constant, const char * description) {
-	fprintf(stderr, "Error %s(%i) occured when %s %s/%s: %s\n", constant, code, action, dirname, basename ? basename : "", description);
+	fprintf(stderr, "Error %s(%i) occured when %s \"%s/%s\": %s\n", constant, code, action, dirname, basename ? basename : "", description);
 }
 
 void handle_stat_error(int code, const char *dirname, const char *basename) {
@@ -403,7 +405,10 @@ int main(int argc, char **argv) {
 	void *inode_pool = NULL;
 	const char * const path = (argc > 1) ? argv[1] : ".";
 
-	initialize_tree_entry(&pwd_entry, path, ".");
+	if (initialize_tree_entry(&pwd_entry, path, ".")) {
+		handle_stat_error(errno, path, ".");
+		return 1;
+	}
 	crawl_tree(&pwd_entry, &inode_pool, path);
 	present_tree(&pwd_entry);
 
