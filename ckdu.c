@@ -19,7 +19,7 @@
 #include <string.h> /* for strlen, strcmp, memcpy */
 #include <stdlib.h> /* for malloc, NULL, qsort */
 #include <assert.h> /* for assert */
-#include <stdio.h> /* for printf, fprintf */
+#include <stdio.h> /* for printf, fprintf, sprintf */
 
 typedef int bool;
 const bool true = 1;
@@ -70,6 +70,30 @@ char * malloc_path_join(const char *dirname, const char *basename) {
 	target[len_dirname + 1 + len_basename] = '\0';
 
 	return target;
+}
+
+char * malloc_humanize(off_t int_number) {
+	const char * const units[] = {NULL, "  B", "kiB", "MiB", "GiB", "TiB", "PiB", "EiB"};
+	off_t divisor = 1024;
+	unsigned int exponent = 1;
+	double float_number = int_number;
+	char * res;
+
+	while (float_number > divisor) {
+		float_number /= divisor;
+		exponent++;
+	}
+	assert(exponent < sizeof(units) / sizeof(char *));
+
+	/* Size = Pre-dot + dot + post-dot + unit + \0 */
+	res = malloc(4 + 1 + 1 + 3 + 1);
+	if (!res) {
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	sprintf(res, "%6.1f%s", float_number, units[exponent]);
+	return res;
 }
 
 bool is_dir(ckdu_tree_entry const *entry) {
@@ -269,12 +293,16 @@ bool is_boring_folder(const char *basename) {
 	return false;
 }
 
+
+
 void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent) {
 	long const bytes_content = virtual_root->content_size + (is_dir(virtual_root) ? virtual_root->extra.dir.add_content_size : 0);
 	ckdu_tree_entry const * child = virtual_root->extra.dir.child;
 
 	char const * const slash_or_not = is_dir(virtual_root) ? "/" : "";
-	printf("%9li%s %s%s\n", bytes_content, indent, virtual_root->name, slash_or_not);
+	char * const size_display = malloc_humanize(bytes_content);
+	printf("%9s%s %s%s\n", size_display, indent, virtual_root->name, slash_or_not);
+	free(size_display);
 
 	if (is_dir(virtual_root) && child) {
 		size_t const child_indent_len = strlen(indent) + 2;
