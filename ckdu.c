@@ -54,6 +54,10 @@ char * strdup(const char *text) {
 	char const *source = text ? text : "NULL";
 	size_t len = strlen(source);
 	char *target = malloc(len + 1);
+	if (!target) {
+		errno = ENOMEM;
+		return NULL;
+	}
 	memcpy(target, source, len);
 	target[len] = '\0';
 	return target;
