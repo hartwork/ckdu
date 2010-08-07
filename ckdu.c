@@ -21,6 +21,11 @@
 #include <assert.h> /* for assert */
 #include <stdio.h> /* for printf, fprintf, sprintf */
 
+#define COLOR_RESET "\033[0m"
+#define COLOR_BOLD_BLUE "\033[1;34m"
+#define COLOR_BOLD_GREEN "\033[1;32m"
+#define COLOR_BOLD_CYAN "\033[1;36m"
+
 typedef int bool;
 const bool true = 1;
 const bool false = 0;
@@ -98,6 +103,16 @@ char * malloc_humanize(off_t int_number) {
 
 	sprintf(res, "%6.1f%s", float_number, units[exponent]);
 	return res;
+}
+
+bool is_link(ckdu_tree_entry const *entry) {
+	assert(entry);
+	return S_ISLNK(entry->mode);
+}
+
+bool is_executable(ckdu_tree_entry const *entry) {
+	assert(entry);
+	return (entry->mode & (S_IXUSR | S_IXGRP | S_IXOTH)) != 0;
 }
 
 bool is_dir(ckdu_tree_entry const *entry) {
@@ -356,15 +371,21 @@ bool is_boring_folder(const char *basename) {
 	return false;
 }
 
-
-
 void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent) {
 	long const bytes_content = virtual_root->content_size + (is_dir(virtual_root) ? virtual_root->extra.dir.add_content_size : 0);
 	ckdu_tree_entry const * child = virtual_root->extra.dir.child;
 
 	char const * const slash_or_not = is_dir(virtual_root) ? "/" : "";
 	char * const size_display = malloc_humanize(bytes_content);
-	printf("%9s%s %s%s\n", size_display, indent, virtual_root->name, slash_or_not);
+	char const * const color_open = is_dir(virtual_root)
+		? COLOR_BOLD_BLUE
+		: (is_link(virtual_root)
+			? COLOR_BOLD_CYAN
+			: (is_executable(virtual_root)
+				? COLOR_BOLD_GREEN
+				: ""));
+	char const * const color_close = COLOR_RESET;
+	printf("%9s%s %s%s%s%s\n", size_display, indent, color_open, virtual_root->name, slash_or_not, color_close);
 	free(size_display);
 
 	if (is_dir(virtual_root) && child) {
