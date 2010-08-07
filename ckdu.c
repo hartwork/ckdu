@@ -114,17 +114,17 @@ char * malloc_humanize(off_t int_number) {
 	return res;
 }
 
-bool is_link(ckdu_tree_entry const *entry) {
+bool is_symlink(ckdu_tree_entry const *entry) {
 	assert(entry);
 	return S_ISLNK(entry->mode);
 }
 
-bool is_executable(ckdu_tree_entry const *entry) {
+bool is_executable_anybody(ckdu_tree_entry const *entry) {
 	assert(entry);
 	return (entry->mode & (S_IXUSR | S_IXGRP | S_IXOTH)) != 0;
 }
 
-bool is_dir(ckdu_tree_entry const *entry) {
+bool is_nonlink_dir(ckdu_tree_entry const *entry) {
 	assert(entry);
 	return S_ISDIR(entry->mode);
 }
@@ -150,7 +150,7 @@ int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const cha
 	entry->sibling = NULL;
 	entry->extra.dir.add_content_size = 0;
 
-	if (is_link(entry)) {
+	if (is_symlink(entry)) {
 		ssize_t res2;
 		size_t term_pos;
 		entry->extra.link.target = malloc(SSIZE_MAX + 1);
@@ -253,7 +253,7 @@ int compare_siblings(const void *void_a, const void *void_b) {
 	 * 2. Big things before small things, content-wise
 	 * 3. After that sort alphabetically
 	 */
-	int const diff_dir = is_dir(b) - is_dir(a);
+	int const diff_dir = is_nonlink_dir(b) - is_nonlink_dir(a);
 	if (diff_dir) {
 		return diff_dir;
 	} else {
@@ -365,7 +365,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, void **inode_pool, const char *di
 					prev = node;
 					child_count++;
 
-					if (is_dir(node)) {
+					if (is_nonlink_dir(node)) {
 						char * const child_dirname = malloc_path_join(dirname, entry->d_name);
 						crawl_tree(node, inode_pool, child_dirname);
 						free(child_dirname);
@@ -374,7 +374,7 @@ void crawl_tree(ckdu_tree_entry *virtual_root, void **inode_pool, const char *di
 					if (add_to_pool(inode_pool, node)) {
 						/* Inode not seen in sister trees before */
 						virtual_root->extra.dir.add_content_size += node->content_size;
-						if (is_dir(node)) {
+						if (is_nonlink_dir(node)) {
 							virtual_root->extra.dir.add_content_size += node->extra.dir.add_content_size;
 						}
 					}
@@ -400,30 +400,30 @@ bool is_boring_folder(const char *basename) {
 }
 
 void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent) {
-	long const bytes_content = virtual_root->content_size + (is_dir(virtual_root) ? virtual_root->extra.dir.add_content_size : 0);
+	long const bytes_content = virtual_root->content_size + (is_nonlink_dir(virtual_root) ? virtual_root->extra.dir.add_content_size : 0);
 	ckdu_tree_entry const * child = virtual_root->extra.dir.child;
 
-	char const * const slash_or_not = is_dir(virtual_root) ? "/" : "";
+	char const * const slash_or_not = is_nonlink_dir(virtual_root) ? "/" : "";
 	char * const size_display = malloc_humanize(bytes_content);
-	char const * const color_open = is_dir(virtual_root)
+	char const * const color_open = is_nonlink_dir(virtual_root)
 		? COLOR_BOLD_BLUE
-		: (is_link(virtual_root)
+		: (is_symlink(virtual_root)
 			? COLOR_BOLD_CYAN
-			: (is_executable(virtual_root)
+			: (is_executable_anybody(virtual_root)
 				? COLOR_BOLD_GREEN
 				: ""));
 	char const * const color_close = COLOR_RESET;
 	printf("%9s%s %s%s%s%s%s%s\n", size_display, indent, color_open,
 		virtual_root->name, slash_or_not, color_close,
-			is_link(virtual_root)
+			is_symlink(virtual_root)
 				? " -> "
 				: "",
-		   is_link(virtual_root)
+		   is_symlink(virtual_root)
 				? virtual_root->extra.link.target
 				: "");
 	free(size_display);
 
-	if (is_dir(virtual_root) && child) {
+	if (is_nonlink_dir(virtual_root) && child) {
 		size_t const child_indent_len = strlen(indent) + 2;
 		size_t i = 0;
 		char * const child_indent = malloc(child_indent_len + 1);
