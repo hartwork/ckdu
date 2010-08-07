@@ -20,6 +20,16 @@
 #include <stdlib.h> /* for malloc, NULL, qsort */
 #include <assert.h> /* for assert */
 #include <stdio.h> /* for printf, fprintf, sprintf */
+#include <unistd.h> /* for readlink */
+
+/* for readlink */
+#ifndef SSIZE_MAX
+# define SSIZE_MAX 1024
+#else
+# ifndef LONG_MAX
+#  define LONG_MAX 1024
+# endif
+#endif
 
 #define COLOR_RESET "\033[0m"
 #define COLOR_BOLD_BLUE "\033[1;34m"
@@ -47,11 +57,10 @@ typedef struct _ckdu_tree_entry {
 			struct _ckdu_tree_entry *child;
 			off_t add_content_size;
 		} dir;
-/*
+
 		struct {
 			char *target;
 		} link;
-*/
 	} extra;
 } ckdu_tree_entry;
 
@@ -140,6 +149,25 @@ int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const cha
 	entry->extra.dir.child = NULL;
 	entry->sibling = NULL;
 	entry->extra.dir.add_content_size = 0;
+
+	if (is_link(entry)) {
+		ssize_t res2;
+		size_t term_pos;
+		entry->extra.link.target = malloc(SSIZE_MAX + 1);
+		if (!entry->extra.link.target) {
+			errno = ENOMEM;
+			return -1;
+		}
+		errno = 0;
+		res2 = readlink(path, entry->extra.link.target, SSIZE_MAX);
+		term_pos = (res2 == -1)
+			? SSIZE_MAX
+			: res2;
+		entry->extra.link.target[term_pos] = '\0';
+	} else {
+		entry->extra.link.target = NULL;
+	}
+
 	return res;
 }
 
@@ -385,7 +413,14 @@ void present_tree_indent(ckdu_tree_entry const *virtual_root, char const *indent
 				? COLOR_BOLD_GREEN
 				: ""));
 	char const * const color_close = COLOR_RESET;
-	printf("%9s%s %s%s%s%s\n", size_display, indent, color_open, virtual_root->name, slash_or_not, color_close);
+	printf("%9s%s %s%s%s%s%s%s\n", size_display, indent, color_open,
+		virtual_root->name, slash_or_not, color_close,
+			is_link(virtual_root)
+				? " -> "
+				: "",
+		   is_link(virtual_root)
+				? virtual_root->extra.link.target
+				: "");
 	free(size_display);
 
 	if (is_dir(virtual_root) && child) {
