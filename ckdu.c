@@ -82,6 +82,11 @@ char * malloc_path_join(const char *dirname, const char *basename) {
 	size_t const len_basename = strlen(basename);
 	char * const target = malloc(len_dirname + 1 + len_basename + 1);
 
+	if (!target) {
+		errno = ENOMEM;
+		return NULL;
+	}
+
 	memcpy(target, dirname, len_dirname);
 	target[len_dirname] = '/';
 	memcpy(target + len_dirname + 1, basename, len_basename);
@@ -135,6 +140,11 @@ int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const cha
 	int res;
 	errno = 0;
 	
+	if (!path) {
+		errno = ENOMEM;
+		return -1;
+	}
+
 	res = lstat(path, &props);
 	free(path);
 
@@ -144,6 +154,10 @@ int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const cha
 	entry->mode = props.st_mode;
 
 	entry->name = strdup(basename);
+	if (!entry->name) {
+		errno = ENOMEM;
+		return -1;
+	}
 	assert(entry->name);
 
 	entry->extra.dir.child = NULL;
