@@ -111,7 +111,7 @@ int initialize_tree_entry(ckdu_tree_entry *entry, const char *dirname, const cha
 	int res;
 	errno = 0;
 	
-	res = stat(path, &props);
+	res = lstat(path, &props);
 	free(path);
 
 	entry->device = props.st_dev;
